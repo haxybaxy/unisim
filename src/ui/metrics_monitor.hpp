@@ -3,6 +3,9 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <string>
+
+#include "../simulation/parallel_utils.hpp"
 
 #ifdef __APPLE__
 #include <mach/mach.h>
@@ -29,6 +32,13 @@ public:
     double get_gpu_usage() const { return gpu_usage_; }
     double get_memory_usage_mb() const { return memory_usage_mb_; }
     double get_fps() const { return fps_; }
+    uint32_t get_process_thread_count() const { return process_thread_count_; }
+    uint32_t get_logical_cores() const { return logical_cores_; }
+    uint32_t get_physical_cores() const { return physical_cores_; }
+    uint32_t get_parallel_threads_last() const { return parallel_last_threads_; }
+    uint32_t get_parallel_threads_peak() const { return parallel_peak_threads_; }
+    double get_parallel_threads_avg() const { return parallel_avg_threads_; }
+    uint32_t get_parallel_active_jobs() const { return parallel_active_jobs_; }
     
     // FPS tracking
     void record_frame();
@@ -78,6 +88,7 @@ private:
     void update_cpu_usage_macos();
     void update_memory_usage_macos();
     void update_gpu_usage_macos();
+    void update_thread_usage_macos();
     void detect_system_info_macos();
     
     // macOS-specific state
@@ -87,6 +98,7 @@ private:
 #endif
     
     void detect_system_info();
+    void update_parallel_metrics();
 
     double cpu_usage_;
     double gpu_usage_;
@@ -94,6 +106,13 @@ private:
     double fps_;
     double sim_time_;
     uint64_t step_count_;
+    uint32_t process_thread_count_;
+    uint32_t logical_cores_;
+    uint32_t physical_cores_;
+    uint32_t parallel_last_threads_;
+    uint32_t parallel_peak_threads_;
+    double parallel_avg_threads_;
+    uint32_t parallel_active_jobs_;
 
     // FPS calculation
     std::chrono::steady_clock::time_point last_frame_time_;

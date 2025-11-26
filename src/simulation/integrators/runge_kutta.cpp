@@ -1,4 +1,5 @@
 #include "runge_kutta.hpp"
+#include "../parallel_utils.hpp"
 
 namespace unisim {
 
@@ -19,18 +20,22 @@ void RungeKuttaIntegrator::step(Universe& universe, double dt) {
     // Helper to compute derivatives
     auto compute_derivative = [&](Universe& u, std::vector<Derivative>& k) {
         force_computer_->compute_forces(u);
-        for (size_t i = 0; i < n; ++i) {
-            k[i].dx = u[i].velocity;
-            k[i].dv = u[i].acceleration;
-        }
+        parallel_for_range(0, n, [&](std::size_t begin, std::size_t end, std::size_t, std::size_t) {
+            for (std::size_t i = begin; i < end; ++i) {
+                k[i].dx = u[i].velocity;
+                k[i].dv = u[i].acceleration;
+            }
+        }, 512);
     };
 
     // Helper to advance state
     auto advance_state = [&](const Universe& initial, Universe& target, const std::vector<Derivative>& k, double scale) {
-        for (size_t i = 0; i < n; ++i) {
-            target[i].position = initial[i].position + k[i].dx * scale;
-            target[i].velocity = initial[i].velocity + k[i].dv * scale;
-        }
+        parallel_for_range(0, n, [&](std::size_t begin, std::size_t end, std::size_t, std::size_t) {
+            for (std::size_t i = begin; i < end; ++i) {
+                target[i].position = initial[i].position + k[i].dx * scale;
+                target[i].velocity = initial[i].velocity + k[i].dv * scale;
+            }
+        }, 512);
     };
 
     // k1: compute at initial state
@@ -49,13 +54,15 @@ void RungeKuttaIntegrator::step(Universe& universe, double dt) {
     compute_derivative(temp_universe, k4);
 
     // Final update
-    for (size_t i = 0; i < n; ++i) {
-        Vector3D d_pos = (k1[i].dx + k2[i].dx * 2.0 + k3[i].dx * 2.0 + k4[i].dx) * (dt / 6.0);
-        Vector3D d_vel = (k1[i].dv + k2[i].dv * 2.0 + k3[i].dv * 2.0 + k4[i].dv) * (dt / 6.0);
+    parallel_for_range(0, n, [&](std::size_t begin, std::size_t end, std::size_t, std::size_t) {
+        for (std::size_t i = begin; i < end; ++i) {
+            Vector3D d_pos = (k1[i].dx + k2[i].dx * 2.0 + k3[i].dx * 2.0 + k4[i].dx) * (dt / 6.0);
+            Vector3D d_vel = (k1[i].dv + k2[i].dv * 2.0 + k3[i].dv * 2.0 + k4[i].dv) * (dt / 6.0);
 
-        universe[i].position += d_pos;
-        universe[i].velocity += d_vel;
-    }
+            universe[i].position += d_pos;
+            universe[i].velocity += d_vel;
+        }
+    }, 512);
 }
 
 } // namespace unisim

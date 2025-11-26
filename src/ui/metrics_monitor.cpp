@@ -20,6 +20,13 @@ MetricsMonitor::MetricsMonitor()
     , fps_(0.0)
     , sim_time_(0.0)
     , step_count_(0)
+    , process_thread_count_(0)
+    , logical_cores_(std::thread::hardware_concurrency())
+    , physical_cores_(std::thread::hardware_concurrency())
+    , parallel_last_threads_(0)
+    , parallel_peak_threads_(0)
+    , parallel_avg_threads_(0.0)
+    , parallel_active_jobs_(0)
     , last_frame_time_(std::chrono::steady_clock::now())
     , fps_start_time_(std::chrono::steady_clock::now())
     , frame_count_(0)
@@ -54,12 +61,15 @@ void MetricsMonitor::update() {
     update_cpu_usage_macos();
     update_memory_usage_macos();
     update_gpu_usage_macos();
+    update_thread_usage_macos();
 #else
     // Fallback for non-macOS systems
     cpu_usage_ = 0.0;
     gpu_usage_ = 0.0;
     memory_usage_mb_ = 0.0;
+    process_thread_count_ = std::thread::hardware_concurrency();
 #endif
+    update_parallel_metrics();
 }
 
 #ifdef __APPLE__
@@ -138,7 +148,29 @@ void MetricsMonitor::update_gpu_usage_macos() {
     if (gpu_usage_ > 100.0) gpu_usage_ = 100.0;
     if (gpu_usage_ < 0.0) gpu_usage_ = 0.0;
 }
+
+void MetricsMonitor::update_thread_usage_macos() {
+    thread_act_array_t thread_list = nullptr;
+    mach_msg_type_number_t thread_count = 0;
+    kern_return_t kr = task_threads(mach_task_self(), &thread_list, &thread_count);
+    if (kr == KERN_SUCCESS) {
+        process_thread_count_ = static_cast<uint32_t>(thread_count);
+        if (thread_list) {
+            vm_deallocate(mach_task_self(),
+                          reinterpret_cast<vm_address_t>(thread_list),
+                          thread_count * sizeof(thread_t));
+        }
+    }
+}
 #endif
+
+void MetricsMonitor::update_parallel_metrics() {
+    ParallelMetricsSnapshot snapshot = get_parallel_metrics_snapshot();
+    parallel_last_threads_ = snapshot.last_threads;
+    parallel_peak_threads_ = snapshot.peak_threads;
+    parallel_avg_threads_ = snapshot.average_threads;
+    parallel_active_jobs_ = snapshot.active_jobs;
+}
 
 void MetricsMonitor::record_frame() {
     auto now = std::chrono::steady_clock::now();
@@ -186,6 +218,21 @@ void MetricsMonitor::detect_system_info_macos() {
         delete[] cpu_brand;
     } else {
         cpu_name_ = "Unknown CPU";
+    }
+    
+    // Detect core counts
+    uint32_t logical = logical_cores_;
+    size = sizeof(logical);
+    if (sysctlbyname("hw.logicalcpu", &logical, &size, nullptr, 0) == 0 && logical > 0) {
+        logical_cores_ = logical;
+    }
+    
+    uint32_t physical = physical_cores_;
+    size = sizeof(physical);
+    if (sysctlbyname("hw.physicalcpu", &physical, &size, nullptr, 0) == 0 && physical > 0) {
+        physical_cores_ = physical;
+    } else {
+        physical_cores_ = logical_cores_;
     }
     
     // Detect Metal version and GPU using system_profiler

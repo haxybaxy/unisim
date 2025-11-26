@@ -630,7 +630,14 @@ void MainWindow::update_metrics() {
         universe_.size(),
         metrics_monitor_.get_avg_step_time_ms(),
         metrics_monitor_.get_steps_per_second(),
-        metrics_monitor_.get_bodies_per_second(universe_.size())
+        metrics_monitor_.get_bodies_per_second(universe_.size()),
+        metrics_monitor_.get_process_thread_count(),
+        metrics_monitor_.get_parallel_threads_last(),
+        metrics_monitor_.get_parallel_threads_avg(),
+        metrics_monitor_.get_parallel_threads_peak(),
+        metrics_monitor_.get_logical_cores(),
+        metrics_monitor_.get_physical_cores(),
+        metrics_monitor_.get_parallel_active_jobs()
     );
     
     // Update viewport system info

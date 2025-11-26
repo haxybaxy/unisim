@@ -5,6 +5,7 @@
 #include "../simulation/universe.hpp"
 #include "../rendering/renderer.hpp"
 #include "../simulation/vector3d.hpp"
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -36,7 +37,11 @@ public:
     
     void set_metrics(double fps, double cpu_usage, double gpu_usage, double memory_mb, 
                      double sim_time, uint64_t step_count, size_t num_bodies,
-                     double avg_step_time_ms = 0.0, double steps_per_sec = 0.0, double bodies_per_sec = 0.0);
+                     double avg_step_time_ms = 0.0, double steps_per_sec = 0.0, double bodies_per_sec = 0.0,
+                     uint32_t process_threads = 0, uint32_t worker_threads = 0,
+                     double avg_worker_threads = 0.0, uint32_t peak_worker_threads = 0,
+                     uint32_t logical_cores = 0, uint32_t physical_cores = 0,
+                     uint32_t active_jobs = 0);
     
     void set_system_info(const std::string& cpu_name, const std::string& gpu_name,
                         const std::string& metal_version, const std::string& cuda_version);
@@ -109,6 +114,13 @@ private:
     double metrics_avg_step_time_ms_{0.0};
     double metrics_steps_per_sec_{0.0};
     double metrics_bodies_per_sec_{0.0};
+    uint32_t metrics_process_threads_{0};
+    uint32_t metrics_worker_threads_{0};
+    double metrics_avg_worker_threads_{0.0};
+    uint32_t metrics_peak_worker_threads_{0};
+    uint32_t metrics_logical_cores_{0};
+    uint32_t metrics_physical_cores_{0};
+    uint32_t metrics_parallel_jobs_{0};
     
     // System info
     std::string system_cpu_name_;

@@ -1428,8 +1428,10 @@ kernel void compute_forces_fmm(
                 }
                 
                 MTLSize gridSize = MTLSizeMake(params.num_bodies, 1, 1);
+                const NSUInteger kMaxThreads = 256;
                 NSUInteger threadGroupSize = fmmForcePipeline.threadExecutionWidth;
-                if (threadGroupSize == 0) threadGroupSize = 256;
+                if (threadGroupSize == 0) threadGroupSize = kMaxThreads;
+                threadGroupSize = std::min<NSUInteger>(threadGroupSize, kMaxThreads);
                 MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1);
                 
                 [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];
@@ -1446,8 +1448,10 @@ kernel void compute_forces_fmm(
                 }
                 
                 MTLSize gridSize = MTLSizeMake(params.num_bodies, 1, 1);
+                const NSUInteger kMaxThreads = 256;
                 NSUInteger threadGroupSize = barnesHutForcePipeline.threadExecutionWidth;
-                if (threadGroupSize == 0) threadGroupSize = 256;
+                if (threadGroupSize == 0) threadGroupSize = kMaxThreads;
+                threadGroupSize = std::min<NSUInteger>(threadGroupSize, kMaxThreads);
                 MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1);
                 
                 [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];
@@ -1458,8 +1462,10 @@ kernel void compute_forces_fmm(
                 [encoder setBuffer:paramsBuffer offset:0 atIndex:1];
                 
                 MTLSize gridSize = MTLSizeMake(params.num_bodies, 1, 1);
+                const NSUInteger kMaxThreads = 256;
                 NSUInteger threadGroupSize = forcePipeline.threadExecutionWidth;
-                if (threadGroupSize == 0) threadGroupSize = 256;
+                if (threadGroupSize == 0) threadGroupSize = kMaxThreads;
+                threadGroupSize = std::min<NSUInteger>(threadGroupSize, kMaxThreads);
                 MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1);
                 
                 [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize];

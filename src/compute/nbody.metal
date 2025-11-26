@@ -16,50 +16,78 @@ struct SimulationParams {
     uint32_t num_bodies;
 };
 
+constexpr ushort kMaxTileSize = 256;
+
 // Force computation kernel
 kernel void compute_forces(
     device Body* bodies [[buffer(0)]],
     constant SimulationParams& params [[buffer(1)]],
-    uint id [[thread_position_in_grid]]
+    uint id [[thread_position_in_grid]],
+    uint local_id [[thread_index_in_threadgroup]],
+    uint tg_size [[threads_per_threadgroup]]
 ) {
     if (id >= params.num_bodies) return;
     
+    tg_size = min((uint)kMaxTileSize, max<uint>(1, tg_size));
+    
     // Skip if body has invalid mass
-    if (bodies[id].mass <= 0.0 || !isfinite(bodies[id].mass)) {
+    Body self = bodies[id];
+    if (self.mass <= 0.0 || !isfinite(self.mass)) {
         bodies[id].acceleration = float3(0.0, 0.0, 0.0);
         return;
     }
     
-    float3 acceleration = float3(0.0, 0.0, 0.0);
+    threadgroup Body sharedBodies[kMaxTileSize];
     
-    for (uint j = 0; j < params.num_bodies; ++j) {
-        if (j == id) continue;
+    float3 acceleration = float3(0.0, 0.0, 0.0);
+    const float3 pos_i = self.position;
+    const float mass_i = self.mass;
+    
+    for (uint tile_begin = 0; tile_begin < params.num_bodies; tile_begin += tg_size) {
+        uint global_index = tile_begin + local_id;
+        if (global_index < params.num_bodies) {
+            sharedBodies[local_id] = bodies[global_index];
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
         
-        // Skip if other body has invalid mass or position
-        if (bodies[j].mass <= 0.0 || !isfinite(bodies[j].mass)) continue;
-        if (!isfinite(bodies[j].position.x) || !isfinite(bodies[j].position.y) || !isfinite(bodies[j].position.z)) continue;
+        uint tile_count = min(tg_size, params.num_bodies - tile_begin);
+        for (uint j = 0; j < tile_count; ++j) {
+            uint other_idx = tile_begin + j;
+            if (other_idx == id) {
+                continue;
+            }
+            
+            const Body other = sharedBodies[j];
+            
+            if (other.mass <= 0.0 || !isfinite(other.mass)) {
+                continue;
+            }
+            
+            if (!isfinite(other.position.x) || !isfinite(other.position.y) || !isfinite(other.position.z)) {
+                continue;
+            }
+            
+            float3 r = other.position - pos_i;
+            float dist_sq = dot(r, r) + params.softening * params.softening;
+            
+            if (dist_sq < 1e-10) {
+                continue;
+            }
+            
+            float dist = sqrt(dist_sq);
+            
+            float force_mag = params.G * mass_i * other.mass / dist_sq;
+            
+            const float max_force = 1e6;
+            force_mag = clamp(force_mag, -max_force, max_force);
+            
+            float3 force_dir = r / dist;
+            float3 force = force_dir * force_mag;
+            
+            acceleration += force / mass_i;
+        }
         
-        float3 r = bodies[j].position - bodies[id].position;
-        float dist_sq = dot(r, r) + params.softening * params.softening;
-        
-        // Prevent division by zero
-        if (dist_sq < 1e-10) continue;
-        
-        float dist = sqrt(dist_sq);
-        
-        // Force magnitude: F = G * m1 * m2 / r²
-        float force_mag = params.G * bodies[id].mass * bodies[j].mass / dist_sq;
-        
-        // Clamp force to prevent extreme values
-        float max_force = 1e6;
-        force_mag = clamp(force_mag, -max_force, max_force);
-        
-        // Force direction
-        float3 force_dir = r / dist;
-        float3 force = force_dir * force_mag;
-        
-        // Acceleration = Force / mass
-        acceleration += force / bodies[id].mass;
+        threadgroup_barrier(mem_flags::mem_threadgroup);
     }
     
     // Clamp acceleration to prevent extreme values

@@ -41,7 +41,7 @@ Viewport::Viewport() : universe_(nullptr), container_(nullptr), gl_area_(nullptr
     gtk_widget_set_valign(metrics_area_, GTK_ALIGN_START);
     gtk_widget_set_margin_end(metrics_area_, 10);
     gtk_widget_set_margin_top(metrics_area_, 10);
-    gtk_widget_set_size_request(metrics_area_, 220, 320); // Fixed size for metrics panel (taller for performance metrics)
+    gtk_widget_set_size_request(metrics_area_, 230, 360); // Fixed size for metrics panel (larger for extended metrics)
     gtk_drawing_area_set_draw_func(
         GTK_DRAWING_AREA(metrics_area_),
         on_draw_metrics,
@@ -157,7 +157,11 @@ void Viewport::set_info(const std::string& backend, const std::string& integrato
 
 void Viewport::set_metrics(double fps, double cpu_usage, double gpu_usage, double memory_mb, 
                            double sim_time, uint64_t step_count, size_t num_bodies,
-                           double avg_step_time_ms, double steps_per_sec, double bodies_per_sec) {
+                           double avg_step_time_ms, double steps_per_sec, double bodies_per_sec,
+                           uint32_t process_threads, uint32_t worker_threads,
+                           double avg_worker_threads, uint32_t peak_worker_threads,
+                           uint32_t logical_cores, uint32_t physical_cores,
+                           uint32_t active_jobs) {
     metrics_fps_ = fps;
     metrics_cpu_ = cpu_usage;
     metrics_gpu_ = gpu_usage;
@@ -168,6 +172,13 @@ void Viewport::set_metrics(double fps, double cpu_usage, double gpu_usage, doubl
     metrics_avg_step_time_ms_ = avg_step_time_ms;
     metrics_steps_per_sec_ = steps_per_sec;
     metrics_bodies_per_sec_ = bodies_per_sec;
+    metrics_process_threads_ = process_threads;
+    metrics_worker_threads_ = worker_threads;
+    metrics_avg_worker_threads_ = avg_worker_threads;
+    metrics_peak_worker_threads_ = peak_worker_threads;
+    metrics_logical_cores_ = logical_cores;
+    metrics_physical_cores_ = physical_cores;
+    metrics_parallel_jobs_ = active_jobs;
     
     gtk_widget_queue_draw(metrics_area_);
 }
@@ -645,6 +656,7 @@ void Viewport::on_draw_metrics(GtkDrawingArea* area, cairo_t* cr, int width, int
     // Format metrics
     char fps_str[32], cpu_str[32], gpu_str[32], mem_str[32], time_str[32], steps_str[32], bodies_str[32];
     char step_time_str[32], steps_sec_str[32], bodies_sec_str[32];
+    char proc_thr_str[32], worker_str[32], avg_worker_str[32], peak_worker_str[32], cores_str[32], jobs_str[32];
     
     snprintf(fps_str, sizeof(fps_str), "%.1f FPS", viewport->metrics_fps_);
     snprintf(cpu_str, sizeof(cpu_str), "%.1f%%", viewport->metrics_cpu_);
@@ -684,6 +696,45 @@ void Viewport::on_draw_metrics(GtkDrawingArea* area, cairo_t* cr, int width, int
         snprintf(bodies_sec_str, sizeof(bodies_sec_str), "N/A");
     }
     
+    // Thread/core metrics formatting
+    if (viewport->metrics_process_threads_ > 0) {
+        snprintf(proc_thr_str, sizeof(proc_thr_str), "%u", viewport->metrics_process_threads_);
+    } else {
+        snprintf(proc_thr_str, sizeof(proc_thr_str), "N/A");
+    }
+    
+    if (viewport->metrics_worker_threads_ > 0) {
+        snprintf(worker_str, sizeof(worker_str), "%u", viewport->metrics_worker_threads_);
+    } else {
+        snprintf(worker_str, sizeof(worker_str), "N/A");
+    }
+    
+    if (viewport->metrics_avg_worker_threads_ > 0.0) {
+        snprintf(avg_worker_str, sizeof(avg_worker_str), "%.1f", viewport->metrics_avg_worker_threads_);
+    } else {
+        snprintf(avg_worker_str, sizeof(avg_worker_str), "N/A");
+    }
+    
+    if (viewport->metrics_peak_worker_threads_ > 0) {
+        snprintf(peak_worker_str, sizeof(peak_worker_str), "%u", viewport->metrics_peak_worker_threads_);
+    } else {
+        snprintf(peak_worker_str, sizeof(peak_worker_str), "N/A");
+    }
+    
+    if (viewport->metrics_logical_cores_ > 0) {
+        snprintf(cores_str, sizeof(cores_str), "%uL/%uP",
+                 viewport->metrics_logical_cores_,
+                 viewport->metrics_physical_cores_ ? viewport->metrics_physical_cores_ : viewport->metrics_logical_cores_);
+    } else {
+        snprintf(cores_str, sizeof(cores_str), "N/A");
+    }
+    
+    if (viewport->metrics_parallel_jobs_ > 0) {
+        snprintf(jobs_str, sizeof(jobs_str), "%u", viewport->metrics_parallel_jobs_);
+    } else {
+        snprintf(jobs_str, sizeof(jobs_str), "0");
+    }
+    
     // Draw metrics with color coding
     draw_metric("FPS", fps_str, 0.0, 1.0, 0.5); // Green
     draw_metric("CPU", cpu_str, 1.0, 0.6, 0.0); // Orange
@@ -715,6 +766,30 @@ void Viewport::on_draw_metrics(GtkDrawingArea* area, cairo_t* cr, int width, int
     draw_metric("STEP", step_time_str, 0.8, 1.0, 0.4); // Light green
     draw_metric("STEPS/S", steps_sec_str, 0.4, 1.0, 0.8); // Cyan
     draw_metric("BODIES/S", bodies_sec_str, 1.0, 0.4, 0.8); // Pink
+    
+    // Thread metrics section
+    y += 6.0;
+    cairo_set_source_rgba(cr, 0.0, 0.9, 1.0, 0.25);
+    cairo_set_line_width(cr, 1.0);
+    cairo_move_to(cr, label_x, y);
+    cairo_line_to(cr, value_x, y);
+    cairo_stroke(cr);
+    y += 10.0;
+    
+    cairo_set_font_size(cr, 9.5);
+    cairo_text_extents_t threads_extents;
+    cairo_set_source_rgba(cr, 0.5, 0.8, 1.0, 0.9);
+    cairo_text_extents(cr, "THREADS", &threads_extents);
+    cairo_move_to(cr, label_x, y + threads_extents.height);
+    cairo_show_text(cr, "THREADS");
+    y += line_height + 2.0;
+    
+    draw_metric("PROC THR", proc_thr_str, 1.0, 0.7, 0.4); // Orange
+    draw_metric("WORKERS", worker_str, 0.4, 0.9, 1.0); // Light blue
+    draw_metric("AVG WRK", avg_worker_str, 0.6, 1.0, 0.4); // Lime
+    draw_metric("PEAK WRK", peak_worker_str, 1.0, 0.5, 0.8); // Pink
+    draw_metric("CORES", cores_str, 0.9, 0.9, 0.5); // Soft yellow
+    draw_metric("ACTIVE", jobs_str, 0.8, 0.6, 1.0); // Purple
     
     // Separator line
     y += 6.0;
