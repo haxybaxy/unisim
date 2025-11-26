@@ -15,12 +15,15 @@ A high-performance n-body physics simulation application built with C++ and GTK4
 ## Prerequisites
 
 ### macOS
+
 ```bash
 brew install gtk4
 ```
 
 ### Linux
+
 Install GTK4 development packages using your distribution's package manager:
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get install libgtk-4-dev libepoxy-dev
@@ -30,6 +33,7 @@ sudo dnf install gtk4-devel libepoxy-devel
 ```
 
 ### Requirements
+
 - CMake 3.10 or higher
 - C++17 compatible compiler
 - pkg-config
@@ -52,11 +56,13 @@ If CUDA is installed and detected by CMake, it will be automatically enabled. Th
 ## Running
 
 From the build directory:
+
 ```bash
 ./unisim
 ```
 
 Or from any directory:
+
 ```bash
 /path/to/build/unisim
 ```
@@ -77,6 +83,7 @@ Or from any directory:
 ### Backend Selection
 
 Choose the compute backend:
+
 - **CPU**: Standard CPU computation (always available)
 - **Metal**: GPU acceleration on macOS (if available)
 - **CUDA**: GPU acceleration on systems with NVIDIA GPUs (if available)
@@ -84,6 +91,7 @@ Choose the compute backend:
 ### Integrator Selection
 
 Choose a numerical integration method:
+
 - **Euler**: Simple first-order method (fast, less accurate)
 - **Verlet**: Second-order symplectic method (good energy conservation)
 - **Leapfrog**: Second-order symplectic method (velocity-centered)
@@ -92,6 +100,7 @@ Choose a numerical integration method:
 ### Force Method Selection
 
 Choose how gravitational forces are computed:
+
 - **Brute Force**: O(N²) - Accurate but slow for many bodies
 - **Barnes-Hut**: O(N log N) - Tree-based approximation, faster for large N
 - **Fast Multipole**: O(N) - Multipole expansion method, fastest for very large N
@@ -99,6 +108,7 @@ Choose how gravitational forces are computed:
 ### Renderer Selection
 
 Choose the visualization mode:
+
 - **2D**: Top-down or side view projection
 - **3D**: Simple 3D rendering
 - **3D OpenGL**: Hardware-accelerated 3D rendering (recommended)
@@ -106,6 +116,7 @@ Choose the visualization mode:
 ### Initial Conditions
 
 Select the starting configuration:
+
 - **Random**: Random distribution of bodies
 - **Spiral Galaxy**: Simulated spiral galaxy formation
 - **Elliptical Galaxy**: Elliptical galaxy configuration
@@ -136,12 +147,14 @@ Use the "Scenario Generator" button to create custom scenarios with preset param
 ## Testing
 
 Run the physics regression tests:
+
 ```bash
 cd build
 ctest
 ```
 
 Or run the test directly:
+
 ```bash
 ./build/physics_regression
 ```
@@ -170,6 +183,10 @@ src/
 ├── compute/          # Compute backends (CPU, GPU)
 └── ui/               # GTK4 user interface
 ```
+
+## Disclaimer
+
+I vibecoded this.
 
 ## License
 
