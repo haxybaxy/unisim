@@ -31,7 +31,18 @@ void BruteForce::compute_forces(Universe& universe) {
                 const Body& body_j = universe[j];
 
                 Vector3D r = body_j.position - body_i.position;
-                double dist_sq = r.magnitude_squared() + softening_ * softening_;
+                
+                // Adaptive softening for black holes (use Schwarzschild radius as minimum softening)
+                double effective_softening = softening_;
+                if (body_j.is_blackhole) {
+                    double schwarzschild_r = body_j.schwarzschild_radius(G_);
+                    effective_softening = std::max(softening_, schwarzschild_r * 0.5);
+                } else if (body_i.is_blackhole) {
+                    double schwarzschild_r = body_i.schwarzschild_radius(G_);
+                    effective_softening = std::max(softening_, schwarzschild_r * 0.5);
+                }
+                
+                double dist_sq = r.magnitude_squared() + effective_softening * effective_softening;
 
                 if (dist_sq <= 0.0) {
                     continue;

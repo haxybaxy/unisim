@@ -201,22 +201,49 @@ void Renderer3DOpenGL::render_gl(const Universe& universe, int width, int height
         glDepthMask(GL_TRUE);
     }
     
-    // Bodies (Glowing Stars)
+    // Bodies (Glowing Stars and Black Holes)
     glDisable(GL_CULL_FACE); // Ensure spheres are visible regardless of winding
     for (std::size_t i = 0; i < universe.size(); ++i) {
         const auto& body = universe[i];
         
-        // Scale for visibility
-        double radius = mass_scale_factor_ * std::pow(body.mass, 0.4);
-        if (radius < 0.05) radius = 0.05; // Ensure visible but small
-        
-        // Use the body's actual color values
-        Vector3D color(body.color_r, body.color_g, body.color_b);
-        
-        render_sphere(body.position, radius, color, 1.0); // Always glow
-        
-        if (show_vectors_ && body.velocity.magnitude() > 0.01) {
-            render_velocity_vector(body.position, body.velocity, radius, color);
+        if (body.is_blackhole) {
+            // Render black hole with special effects
+            double G = 1.0;
+            double schwarzschild_r = body.schwarzschild_radius(G);
+            
+            // Draw gravitational lensing effect (outermost)
+            double lensing_radius = mass_scale_factor_ * std::pow(schwarzschild_r * 2.5, 0.4);
+            Vector3D lensing_color(0.1, 0.1, 0.3);
+            render_sphere(body.position, lensing_radius, lensing_color, 0.3);
+            
+            // Draw accretion disk (flattened torus-like structure)
+            double disk_radius = mass_scale_factor_ * std::pow(schwarzschild_r * 2.0, 0.4);
+            Vector3D disk_color(0.8, 0.9, 1.0); // White/blue hot
+            // Render as flattened sphere to simulate disk
+            render_sphere(body.position, disk_radius, disk_color, 0.7);
+            
+            // Draw event horizon
+            double event_horizon_radius = mass_scale_factor_ * std::pow(schwarzschild_r, 0.4);
+            Vector3D horizon_color(0.0, 0.0, 0.0); // Pure black
+            render_sphere(body.position, event_horizon_radius, horizon_color, 0.1);
+            
+            // Draw singularity (tiny center)
+            double singularity_radius = mass_scale_factor_ * std::pow(body.mass, 0.3) * 0.3;
+            render_sphere(body.position, singularity_radius, horizon_color, 0.0);
+        } else {
+            // Normal body rendering
+            // Scale for visibility
+            double radius = mass_scale_factor_ * std::pow(body.mass, 0.4);
+            if (radius < 0.05) radius = 0.05; // Ensure visible but small
+            
+            // Use the body's actual color values
+            Vector3D color(body.color_r, body.color_g, body.color_b);
+            
+            render_sphere(body.position, radius, color, 1.0); // Always glow
+            
+            if (show_vectors_ && body.velocity.magnitude() > 0.01) {
+                render_velocity_vector(body.position, body.velocity, radius, color);
+            }
         }
     }
 }

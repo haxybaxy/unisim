@@ -59,6 +59,7 @@ set(SOURCES
     src/initial_conditions/galaxy_collision.cpp
     src/initial_conditions/solar_system.cpp
     src/initial_conditions/binary_star.cpp
+    src/initial_conditions/black_hole.cpp
     src/compute/compute_backend.hpp
     src/compute/cpu_backend.cpp
     src/simulation/integrators/runge_kutta.cpp

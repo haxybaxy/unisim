@@ -114,8 +114,13 @@ void Renderer3D::render(cairo_t* cr, const Universe& universe, int width, int he
             radius = 0.5;
         }
         
-        // Draw sphere with glow
+        // Special rendering for black holes
+        if (body->is_blackhole) {
+            draw_black_hole(cr, body->position, projected, radius, depth_dist, index, *body, base_scale, perspective_scale);
+        } else {
+            // Draw sphere with glow for normal bodies
             draw_sphere_with_glow(cr, projected, radius, depth_dist, index, universe[index]);
+        }
         
         // Draw velocity vector as arrow
         if (show_vectors_ && body->velocity.magnitude() > 0.01) {
@@ -397,6 +402,105 @@ void Renderer3D::draw_sphere_with_glow(cairo_t* cr, const Vector3D& projected, d
     cairo_arc(cr, projected.x, projected.y, radius, 0, 2 * M_PI);
     cairo_fill(cr);
     cairo_pattern_destroy(sphere_pattern);
+}
+
+void Renderer3D::draw_black_hole(cairo_t* cr, const Vector3D& world_pos, const Vector3D& projected, double radius, double depth, std::size_t index, const Body& body, double base_scale, double perspective_scale) {
+    // Calculate Schwarzschild radius
+    double G = 1.0;
+    double schwarzschild_r = body.schwarzschild_radius(G);
+    
+    // Calculate event horizon size on screen
+    double size_scale = calculate_depth_scale(depth);
+    double event_horizon_world = schwarzschild_r * size_scale;
+    double event_horizon_screen = event_horizon_world * base_scale * perspective_scale;
+    
+    // Ensure minimum visible size for event horizon
+    if (event_horizon_screen < radius * 1.2) {
+        event_horizon_screen = radius * 1.2;
+    }
+    
+    // Draw gravitational lensing effect (outermost glow - warped space visualization)
+    double lensing_radius = event_horizon_screen * 2.5;
+    cairo_pattern_t* lensing_pattern = cairo_pattern_create_radial(
+        projected.x, projected.y, event_horizon_screen,
+        projected.x, projected.y, lensing_radius
+    );
+    // Dark blue/purple glow representing warped spacetime
+    cairo_pattern_add_color_stop_rgba(lensing_pattern, 0.0, 0.1, 0.1, 0.3, 0.6);
+    cairo_pattern_add_color_stop_rgba(lensing_pattern, 0.5, 0.05, 0.05, 0.2, 0.4);
+    cairo_pattern_add_color_stop_rgba(lensing_pattern, 1.0, 0.0, 0.0, 0.1, 0.0);
+    
+    cairo_new_path(cr);
+    cairo_set_source(cr, lensing_pattern);
+    cairo_arc(cr, projected.x, projected.y, lensing_radius, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_pattern_destroy(lensing_pattern);
+    
+    // Draw accretion disk (glowing ring around event horizon)
+    double disk_inner = event_horizon_screen * 1.3;
+    double disk_outer = event_horizon_screen * 2.0;
+    
+    // Inner hot region (white/blue)
+    cairo_pattern_t* disk_pattern = cairo_pattern_create_radial(
+        projected.x, projected.y, disk_inner,
+        projected.x, projected.y, disk_outer
+    );
+    cairo_pattern_add_color_stop_rgba(disk_pattern, 0.0, 1.0, 1.0, 1.0, 0.9); // White hot center
+    cairo_pattern_add_color_stop_rgba(disk_pattern, 0.3, 0.8, 0.9, 1.0, 0.8); // Blue-white
+    cairo_pattern_add_color_stop_rgba(disk_pattern, 0.6, 0.6, 0.7, 0.9, 0.6); // Blue
+    cairo_pattern_add_color_stop_rgba(disk_pattern, 1.0, 0.3, 0.4, 0.6, 0.3); // Dark blue/red
+    
+    cairo_new_path(cr);
+    cairo_set_source(cr, disk_pattern);
+    // Draw disk as filled ring
+    cairo_arc(cr, projected.x, projected.y, disk_outer, 0, 2 * M_PI);
+    cairo_arc_negative(cr, projected.x, projected.y, disk_inner, 2 * M_PI, 0);
+    cairo_fill(cr);
+    cairo_pattern_destroy(disk_pattern);
+    
+    // Draw event horizon (pure black sphere with subtle edge glow)
+    // Outer edge glow (very subtle)
+    cairo_pattern_t* horizon_glow = cairo_pattern_create_radial(
+        projected.x, projected.y, event_horizon_screen * 0.9,
+        projected.x, projected.y, event_horizon_screen * 1.1
+    );
+    cairo_pattern_add_color_stop_rgba(horizon_glow, 0.0, 0.0, 0.0, 0.0, 0.0); // Transparent
+    cairo_pattern_add_color_stop_rgba(horizon_glow, 0.5, 0.05, 0.05, 0.15, 0.3); // Very subtle dark glow
+    cairo_pattern_add_color_stop_rgba(horizon_glow, 1.0, 0.0, 0.0, 0.0, 0.0); // Transparent
+    
+    cairo_new_path(cr);
+    cairo_set_source(cr, horizon_glow);
+    cairo_arc(cr, projected.x, projected.y, event_horizon_screen * 1.1, 0, 2 * M_PI);
+    cairo_fill(cr);
+    cairo_pattern_destroy(horizon_glow);
+    
+    // Event horizon itself (pure black)
+    cairo_new_path(cr);
+    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_arc(cr, projected.x, projected.y, event_horizon_screen, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Draw black hole singularity (tiny dark center, even darker than event horizon)
+    double singularity_radius = std::max(radius * 0.3, 2.0);
+    cairo_new_path(cr);
+    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_arc(cr, projected.x, projected.y, singularity_radius, 0, 2 * M_PI);
+    cairo_fill(cr);
+    
+    // Add subtle inner glow for dramatic effect (simulating photon sphere)
+    double photon_sphere = event_horizon_screen * 1.1;
+    cairo_pattern_t* photon_pattern = cairo_pattern_create_radial(
+        projected.x, projected.y, event_horizon_screen,
+        projected.x, projected.y, photon_sphere
+    );
+    cairo_pattern_add_color_stop_rgba(photon_pattern, 0.0, 0.0, 0.0, 0.0, 0.0);
+    cairo_pattern_add_color_stop_rgba(photon_pattern, 1.0, 0.2, 0.3, 0.5, 0.4); // Subtle blue glow
+    
+    cairo_new_path(cr);
+    cairo_set_source(cr, photon_pattern);
+    cairo_arc(cr, projected.x, projected.y, photon_sphere, 0, 2 * M_PI);
+    cairo_stroke(cr);
+    cairo_pattern_destroy(photon_pattern);
 }
 
 void Renderer3D::get_body_color(std::size_t index, double& r, double& g, double& b) const {

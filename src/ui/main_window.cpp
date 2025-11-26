@@ -3,7 +3,6 @@
 #include "../compute/cpu_backend.hpp"
 #include "../compute/metal_backend.hpp"
 #include "../compute/cuda_backend.hpp"
-#include "../compute/cuda_backend.hpp"
 #include "../rendering/renderer_2d.hpp"
 #include "../rendering/renderer_3d.hpp"
 #include "../rendering/renderer_3d_opengl.hpp"
@@ -13,6 +12,7 @@
 #include "../initial_conditions/galaxy_collision.hpp"
 #include "../initial_conditions/solar_system.hpp"
 #include "../initial_conditions/binary_star.hpp"
+#include "../initial_conditions/black_hole.hpp"
 #include "scenario_generator.hpp"
 #include <string>
 #include <memory>
@@ -563,6 +563,10 @@ void MainWindow::on_scenario_dialog_response(GtkDialog* dialog, int response_id,
         } else if (scenario == "Binary Star System") {
             self->initializer_ = std::make_shared<BinaryStarInitializer>(
                 params.binary_separation, params.num_planets_binary
+            );
+        } else if (scenario == "Black Hole System") {
+            self->initializer_ = std::make_shared<BlackHoleInitializer>(
+                params.black_hole_mass, params.num_orbiting_bodies, params.system_radius
             );
         } else {
             // Random or other - use default

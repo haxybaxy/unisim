@@ -68,6 +68,7 @@ private:
     void draw_scale_bar(cairo_t* cr, double scale, int width, int height);
     void draw_coordinate_axes(cairo_t* cr, double scale, int width, int height);
     void draw_sphere_with_glow(cairo_t* cr, const Vector3D& projected, double radius, double depth, std::size_t index, const Body& body);
+    void draw_black_hole(cairo_t* cr, const Vector3D& world_pos, const Vector3D& projected, double radius, double depth, std::size_t index, const Body& body, double base_scale, double perspective_scale);
     void draw_velocity_arrow(cairo_t* cr, const Vector3D& start_proj, const Vector3D& end_proj, double body_radius);
     void get_body_color(std::size_t index, double& r, double& g, double& b) const;
     Vector3D project_point(const Vector3D& point, double scale, int width, int height) const;

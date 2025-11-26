@@ -62,6 +62,11 @@ public:
         // Binary Star specific
         double binary_separation{10.0};
         int num_planets_binary{4};
+        
+        // Black Hole specific
+        double black_hole_mass{10000.0};
+        int num_orbiting_bodies{150};
+        double system_radius{50.0};
     };
     
     ScenarioParams get_params() const;
@@ -79,6 +84,7 @@ private:
     void setup_elliptical_galaxy_params();
     void setup_solar_system_params();
     void setup_binary_star_params();
+    void setup_black_hole_params();
     
     GtkWidget* dialog_{nullptr};
     GtkWidget* scenario_dropdown_;
@@ -111,6 +117,11 @@ private:
     // Binary Star
     GtkWidget* binary_separation_spin_;
     GtkWidget* num_planets_binary_spin_;
+    
+    // Black Hole
+    GtkWidget* black_hole_mass_spin_;
+    GtkWidget* num_orbiting_bodies_spin_;
+    GtkWidget* system_radius_spin_;
     
     std::string selected_scenario_;
     bool dialog_result_{false};

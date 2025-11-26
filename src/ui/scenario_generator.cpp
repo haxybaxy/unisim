@@ -42,6 +42,7 @@ ScenarioGenerator::ScenarioGenerator() : dialog_(nullptr) {
     gtk_string_list_append(scenario_list, "Galaxy Collision");
     gtk_string_list_append(scenario_list, "Solar System");
     gtk_string_list_append(scenario_list, "Binary Star System");
+    gtk_string_list_append(scenario_list, "Black Hole System");
     
     scenario_dropdown_ = gtk_drop_down_new(G_LIST_MODEL(scenario_list), NULL);
     g_signal_connect(scenario_dropdown_, "notify::selected-item", G_CALLBACK(on_scenario_changed), this);
@@ -144,6 +145,7 @@ void ScenarioGenerator::recreate_dialog() {
     gtk_string_list_append(scenario_list, "Galaxy Collision");
     gtk_string_list_append(scenario_list, "Solar System");
     gtk_string_list_append(scenario_list, "Binary Star System");
+    gtk_string_list_append(scenario_list, "Black Hole System");
     
     scenario_dropdown_ = gtk_drop_down_new(G_LIST_MODEL(scenario_list), NULL);
     g_signal_connect(scenario_dropdown_, "notify::selected-item", G_CALLBACK(on_scenario_changed), this);
@@ -247,6 +249,10 @@ ScenarioGenerator::ScenarioParams ScenarioGenerator::get_params() const {
     } else if (selected_scenario_ == "Binary Star System") {
         params.binary_separation = gtk_spin_button_get_value(GTK_SPIN_BUTTON(binary_separation_spin_));
         params.num_planets_binary = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(num_planets_binary_spin_));
+    } else if (selected_scenario_ == "Black Hole System") {
+        params.black_hole_mass = gtk_spin_button_get_value(GTK_SPIN_BUTTON(black_hole_mass_spin_));
+        params.num_orbiting_bodies = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(num_orbiting_bodies_spin_));
+        params.system_radius = gtk_spin_button_get_value(GTK_SPIN_BUTTON(system_radius_spin_));
     }
     
     return params;
@@ -342,6 +348,8 @@ void ScenarioGenerator::update_parameter_panel() {
         setup_solar_system_params();
     } else if (selected_scenario_ == "Binary Star System") {
         setup_binary_star_params();
+    } else if (selected_scenario_ == "Black Hole System") {
+        setup_black_hole_params();
     }
 }
 
@@ -458,6 +466,32 @@ void ScenarioGenerator::setup_binary_star_params() {
     num_planets_binary_spin_ = gtk_spin_button_new_with_range(0, 20, 1);
     gtk_spin_button_set_value(GTK_SPIN_BUTTON(num_planets_binary_spin_), 4);
     gtk_box_append(GTK_BOX(params_box_), num_planets_binary_spin_);
+}
+
+void ScenarioGenerator::setup_black_hole_params() {
+    // Black hole mass
+    GtkWidget* label = gtk_label_new("Black Hole Mass:");
+    gtk_box_append(GTK_BOX(params_box_), label);
+    
+    black_hole_mass_spin_ = gtk_spin_button_new_with_range(1000.0, 100000.0, 1000.0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(black_hole_mass_spin_), 10000.0);
+    gtk_box_append(GTK_BOX(params_box_), black_hole_mass_spin_);
+    
+    // Number of orbiting bodies
+    label = gtk_label_new("Number of Orbiting Bodies:");
+    gtk_box_append(GTK_BOX(params_box_), label);
+    
+    num_orbiting_bodies_spin_ = gtk_spin_button_new_with_range(10, 1000, 10);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(num_orbiting_bodies_spin_), 150);
+    gtk_box_append(GTK_BOX(params_box_), num_orbiting_bodies_spin_);
+    
+    // System radius
+    label = gtk_label_new("System Radius:");
+    gtk_box_append(GTK_BOX(params_box_), label);
+    
+    system_radius_spin_ = gtk_spin_button_new_with_range(10.0, 200.0, 5.0);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(system_radius_spin_), 50.0);
+    gtk_box_append(GTK_BOX(params_box_), system_radius_spin_);
 }
 
 } // namespace unisim
