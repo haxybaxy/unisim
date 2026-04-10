@@ -144,3 +144,32 @@ if(APPLE)
 endif()
 
 add_test(NAME physics_regression COMMAND physics_regression)
+
+# Benchmark harness (headless, no GTK)
+add_executable(benchmark
+    tests/benchmark.cpp
+    src/simulation/force_computers/brute_force.cpp
+    src/simulation/force_computers/fast_multipole.cpp
+    src/simulation/force_computers/barnes_hut.cpp
+    src/simulation/integrators/euler.cpp
+    src/simulation/integrators/verlet.cpp
+    src/simulation/integrators/leapfrog.cpp
+    src/simulation/integrators/runge_kutta.cpp
+)
+
+target_include_directories(benchmark PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+if(USE_CUDA)
+    target_sources(benchmark PRIVATE src/compute/cuda_backend.cu)
+    target_compile_definitions(benchmark PRIVATE UNISIM_USE_CUDA)
+    target_link_libraries(benchmark PRIVATE CUDA::cudart)
+else()
+    target_sources(benchmark PRIVATE src/compute/cuda_backend_stub.cpp)
+endif()
+
+if(APPLE)
+    target_sources(benchmark PRIVATE src/compute/metal_backend.mm)
+    if(METAL_LIB AND FOUNDATION_LIB)
+        target_link_libraries(benchmark PRIVATE ${METAL_LIB} ${FOUNDATION_LIB})
+    endif()
+endif()

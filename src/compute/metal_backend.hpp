@@ -28,13 +28,18 @@ public:
     void set_integrator(const std::string& name) override;
     void set_force_method(const std::string& name) override;
 
+    void set_softening(double s) { softening_ = s; }
+    void set_theta(double t) { theta_ = t; }
+
 private:
     class Impl;
     std::unique_ptr<Impl> impl_;
     
     std::string current_integrator_;
     std::string current_force_method_;
-    
+    double softening_ = 0.1;
+    double theta_ = 0.5;
+
     void setup_integrators();
 };
 

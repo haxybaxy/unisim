@@ -106,6 +106,7 @@ struct SimulationParams {
     float softening;
     float dt;
     uint32_t num_bodies;
+    float theta;
 };
 
 kernel void compute_forces(
@@ -411,14 +412,14 @@ kernel void compute_forces_barnes_hut(
     int stack_ptr = 0;
     stack[stack_ptr++] = 0; // Start at root
     
-    const float theta = 0.2; // Opening angle threshold
-    
+    const float theta = params.theta;
+
     while (stack_ptr > 0) {
         int32_t node_idx = stack[--stack_ptr];
         TreeNode node = tree_nodes[node_idx];
-        
+
         if (node.total_mass <= 0.0) continue;
-        
+
         if (node.is_leaf != 0) {
             bool leaf_contains_target = false;
             if (node.body_count > 1 && node.body_offset >= 0 && leaf_indices != nullptr) {
@@ -524,7 +525,7 @@ kernel void compute_forces_fmm(
 
     float3 pos_i = float3(bodies[id].position);
     float3 acceleration = float3(0.0, 0.0, 0.0);
-    const float theta = 0.25;
+    const float theta = params.theta;
 
     int32_t stack[64];
     int stack_ptr = 0;
@@ -1165,20 +1166,23 @@ kernel void compute_forces_fmm(
             return node_idx;
         }
         
+        // Reserve slot for this node FIRST so that node_idx is stable
+        // across recursive child insertions
         int node_idx = static_cast<int>(tree_nodes_.size());
-        FlattenedTreeNode node;
+        tree_nodes_.emplace_back();
+        FlattenedTreeNode& node = tree_nodes_[node_idx];
         node.center[0] = static_cast<float>(center.x);
         node.center[1] = static_cast<float>(center.y);
         node.center[2] = static_cast<float>(center.z);
         node.size = static_cast<float>(size);
         node.body_count = 0;
         node.body_offset = -1;
-        
+
         // Initialize child indices
         for (int i = 0; i < 8; ++i) {
             node.child_indices[i] = -1;
         }
-        
+
         if (body_indices.size() == 1) {
             // Leaf node
             node.is_leaf = 1;
@@ -1193,16 +1197,16 @@ kernel void compute_forces_fmm(
             // Internal node: compute COM and subdivide
             node.is_leaf = 0;
             node.body_index = -1;
-            
+
             double total_mass = 0.0;
             Vector3D weighted_pos(0.0, 0.0, 0.0);
-            
+
             for (std::size_t idx : body_indices) {
                 double mass = universe[idx].mass;
                 total_mass += mass;
                 weighted_pos = weighted_pos + universe[idx].position * mass;
             }
-            
+
             node.total_mass = static_cast<float>(total_mass);
             if (total_mass > 0.0) {
                 Vector3D com = weighted_pos / total_mass;
@@ -1214,15 +1218,15 @@ kernel void compute_forces_fmm(
                 node.com[1] = node.center[1];
                 node.com[2] = node.center[2];
             }
-            
+
             // Distribute bodies into octants
             std::vector<std::vector<std::size_t>> octant_bodies(8);
-            
+
             for (std::size_t idx : body_indices) {
                 int octant = getOctant(universe[idx].position, center);
                 octant_bodies[octant].push_back(idx);
             }
-            
+
             // Check if all bodies ended up in the same octant (can cause infinite recursion)
             int non_empty_octants = 0;
             for (int i = 0; i < 8; ++i) {
@@ -1230,7 +1234,7 @@ kernel void compute_forces_fmm(
                     non_empty_octants++;
                 }
             }
-            
+
             // If all bodies in same octant, force leaf node to prevent infinite recursion
             // This happens when bodies are very close together
             if (non_empty_octants == 1) {
@@ -1246,24 +1250,27 @@ kernel void compute_forces_fmm(
                 // COM already computed above
             } else {
                 // Recursively build children
+                // NOTE: recursive calls may cause tree_nodes_ to reallocate,
+                // invalidating our reference. Re-acquire after each recursion.
                 double child_size = size * 0.5;
                 for (int octant = 0; octant < 8; ++octant) {
                     if (!octant_bodies[octant].empty()) {
                         Vector3D child_center = getOctantCenter(center, size, octant);
-                        int child_idx = flattenTreeRecursive(universe, child_center, child_size, 
+                        int child_idx = flattenTreeRecursive(universe, child_center, child_size,
                                                             octant_bodies[octant], node_idx, depth + 1);
-                        node.child_indices[octant] = child_idx;
+                        tree_nodes_[node_idx].child_indices[octant] = child_idx;
                     }
                 }
             }
         }
-        
-        if (node.is_leaf != 0) {
-            compute_leaf_dipole(node);
+
+        // Re-acquire reference after potential reallocation
+        FlattenedTreeNode& final_node = tree_nodes_[node_idx];
+        if (final_node.is_leaf != 0) {
+            compute_leaf_dipole(final_node);
         } else {
-            compute_internal_dipole(node);
+            compute_internal_dipole(final_node);
         }
-        tree_nodes_.push_back(node);
         return node_idx;
     }
     
@@ -1291,7 +1298,7 @@ kernel void compute_forces_fmm(
         return center;
     }
     
-    void computeForces(Universe& universe, double G, double softening, const std::string& force_method) {
+    void computeForces(Universe& universe, double G, double softening, double theta, const std::string& force_method) {
         if (!initialized || !device || !commandQueue) {
             std::cerr << "Metal backend not properly initialized" << std::endl;
             return;
@@ -1324,12 +1331,14 @@ kernel void compute_forces_fmm(
                 float softening;
                 float dt;
                 uint32_t num_bodies;
+                float theta;
             } params;
-            
+
             params.G = static_cast<float>(G);
             params.softening = static_cast<float>(softening);
             params.dt = 0.0f; // Not used in force computation
             params.num_bodies = static_cast<uint32_t>(universe.size());
+            params.theta = static_cast<float>(theta);
             
             if (!paramsBuffer || [paramsBuffer length] < sizeof(params)) {
                 paramsBuffer = [device newBufferWithBytes:&params
@@ -1539,17 +1548,19 @@ kernel void compute_forces_fmm(
                 float softening;
                 float dt;
                 uint32_t num_bodies;
+                float theta;
             } params;
-            
+
             // RK4 needs G and softening for internal force computation
             // Other integrators don't use these
             if (method == "Runge-Kutta" || method == "RK4" || method == "Runge Kutta") {
-                params.G = 1.0f; // Default G value
-                params.softening = 0.1f; // Default softening
+                params.G = 1.0f;
+                params.softening = 0.1f;
             } else {
-                params.G = 0.0f; // Not used in other integrators
-                params.softening = 0.0f; // Not used in other integrators
+                params.G = 0.0f;
+                params.softening = 0.0f;
             }
+            params.theta = 0.5f;
             params.dt = static_cast<float>(dt);
             params.num_bodies = static_cast<uint32_t>(universe.size());
             
@@ -1664,11 +1675,9 @@ void MetalBackend::step(Universe& universe, double dt) {
     // For RK4, forces are computed internally in the kernel
     // For other integrators, compute forces first
     if (current_integrator_ != "Runge-Kutta" && current_integrator_ != "RK4" && current_integrator_ != "Runge Kutta") {
-        // Compute forces
-        impl_->computeForces(universe, 1.0, 0.1, current_force_method_); // G=1.0, softening=0.1
+        impl_->computeForces(universe, 1.0, softening_, theta_, current_force_method_);
     } else {
-        // For RK4, we still need to compute initial forces (k1 stage)
-        impl_->computeForces(universe, 1.0, 0.1, current_force_method_);
+        impl_->computeForces(universe, 1.0, softening_, theta_, current_force_method_);
     }
 
     if (current_integrator_ == "Verlet") {
